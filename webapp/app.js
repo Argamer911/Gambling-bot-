@@ -35,7 +35,30 @@ const ring=new THREE.Mesh(new THREE.TorusGeometry(8.2,.08,8,64),mat(0xc18b52)); 
 function rock(x,z,s=1){const m=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0),stoneMat);m.position.set(x,s*.45,z);m.scale.y=.7;m.castShadow=true;m.receiveShadow=true;scene.add(m)}
 for(let i=0;i<18;i++){const a=i/18*Math.PI*2;rock(Math.cos(a)*11,Math.sin(a)*11,.7+Math.random()*.9)}
 function tree(x,z,h){const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16,.25,h*.42,6),mat(0x49362b));trunk.position.set(x,h*.21,z);trunk.castShadow=true;scene.add(trunk);for(let j=0;j<3;j++){const crown=new THREE.Mesh(new THREE.ConeGeometry(h*(.24-j*.035),h*.42,7),mat(j===0?0x253f35:0x304d3b));crown.position.set(x,h*.48+j*h*.19,z);crown.castShadow=true;scene.add(crown)}}
+
 for(let i=0;i<22;i++){const a=i/22*Math.PI*2;tree(Math.cos(a)*15,Math.sin(a)*15,4+Math.random()*3)}
+
+// Hand-built shinobi shrine arena: layered gates, broken pillars and grass detail.
+function boxProp(x,y,z,sx,sy,sz,color,rot=0){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),mat(color,.92));
+ m.position.set(x,y,z);m.rotation.y=rot;m.castShadow=true;m.receiveShadow=true;scene.add(m);return m;
+}
+const gateRed=mat(0x702b25),gateDark=mat(0x332a27),moss=mat(0x354c39);
+boxProp(0,3.4,-13,8,.38,.55,0x4a2525);
+boxProp(0,2.85,-13,7.2,.25,.7,0x8c382b);
+for(const x of [-3.15,3.15]){const post=new THREE.Mesh(new THREE.CylinderGeometry(.22,.3,5.6,10),gateRed);post.position.set(x,2.8,-13);post.castShadow=true;scene.add(post)}
+boxProp(0,.35,-13,9,.45,1.1,0x4c4741);
+for(let i=0;i<8;i++){
+ const x=(Math.random()-.5)*18,z=-9-Math.random()*10;
+ const blade=new THREE.Mesh(new THREE.ConeGeometry(.08,.55,5),moss);
+ blade.position.set(x,.24,z);blade.rotation.z=(Math.random()-.5)*.35;scene.add(blade);
+}
+for(const x of [-10,10]){
+ const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.65,.8,2.8,7),stoneMat);
+ pillar.position.set(x,1.25,-7);pillar.rotation.z=x<0?.16:-.2;pillar.castShadow=true;scene.add(pillar);
+ boxProp(x,.25,-7,1.8,.5,1.8,0x454b50);
+}
+
 
 function makeNinja(isPlayer=true){
  const g=new THREE.Group();
