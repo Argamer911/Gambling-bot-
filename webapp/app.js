@@ -22,9 +22,10 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 root.prepend(renderer.domElement);
 
 scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x46372c, 2.1));
-const sun = new THREE.DirectionalLight(0xffe0bd, 2.3);
+const sun = new THREE.DirectionalLight(0xffe0bd, 3.1);
 sun.position.set(-7, 13, 8); sun.castShadow = true;
-sun.shadow.mapSize.set(1024,1024); scene.add(sun);
+sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.left=-18;sun.shadow.camera.right=18;sun.shadow.camera.top=18;sun.shadow.camera.bottom=-18;scene.add(sun);
+const rimLight=new THREE.DirectionalLight(0x5b8fff,1.8);rimLight.position.set(7,6,-8);scene.add(rimLight);
 
 const mat=(color,roughness=.8,metalness=0)=>new THREE.MeshStandardMaterial({color,roughness,metalness});
 const groundMat=mat(0x52604b), stoneMat=mat(0x59616a), darkMat=mat(0x171923), clothMat=mat(0x252a36), orangeMat=mat(0xc94d1c), skinMat=mat(0xb97855), metalMat=mat(0x9ca7b2,.35,.65), eyeMat=mat(0xe32624,.3);
@@ -66,6 +67,9 @@ let playerModel=null, enemyModel=null, playerMixer=null, enemyMixer=null;
 let playerWalk=null, enemyWalk=null;
 const ninjaAssetUrl = "https://grab3d.com/dl/ninja-rigged/ninja-rigged.glb";
 function fitNinja(root){
+ const toonData=new Uint8Array([42,42,42,255,105,105,105,255,180,180,180,255,255,255,255,255]);
+ const toonGradient=new THREE.DataTexture(toonData,4,1,THREE.RGBAFormat);
+ toonGradient.magFilter=THREE.NearestFilter;toonGradient.minFilter=THREE.NearestFilter;toonGradient.needsUpdate=true;
  const box=new THREE.Box3().setFromObject(root);
  const size=box.getSize(new THREE.Vector3());
  const center=box.getCenter(new THREE.Vector3());
@@ -76,7 +80,7 @@ function fitNinja(root){
   if(o.isMesh){o.castShadow=true;o.receiveShadow=true;
    if(o.material){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();
     const mats=Array.isArray(o.material)?o.material:[o.material];
-    for(const m of mats){if(m.color){m.color.multiply(new THREE.Color(0xd6c4bd));} if("roughness" in m)m.roughness=Math.min(.9,m.roughness+.12);}
+    for(let i=0;i<mats.length;i++){const old=mats[i];const toon=new THREE.MeshToonMaterial({map:old.map||null,color:old.color?old.color.clone():new THREE.Color(0xffffff),gradientMap:toonGradient,transparent:old.transparent,alphaMap:old.alphaMap||null,side:old.side});toon.skinning=true;if(old.emissive)toon.color.multiply(old.color);mats[i]=toon;} if(Array.isArray(o.material))o.material=mats;else o.material=mats[0];
    }
   }
  });
