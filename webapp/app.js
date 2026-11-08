@@ -1,4 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+import { clone as cloneSkeleton } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js";
 
 const tg = window.Telegram?.WebApp;
 tg?.ready();
@@ -56,13 +58,62 @@ function makeNinja(isPlayer=true){
 const player=makeNinja(true);player.position.set(-2,0,1.5);scene.add(player);
 const enemy=makeNinja(false);enemy.position.set(2,0,-1.4);enemy.rotation.y=Math.PI;scene.add(enemy);
 const fighters=[player,enemy];
+
+// High-detail CC0 rigged ninja asset. Keep the original fighters as fallbacks
+// until the external model has loaded successfully.
+const ninjaLoader = new GLTFLoader();
+let playerModel=null, enemyModel=null, playerMixer=null, enemyMixer=null;
+let playerWalk=null, enemyWalk=null;
+const ninjaAssetUrl = "https://grab3d.com/dl/ninja-rigged/ninja-rigged.glb";
+function fitNinja(root){
+ const box=new THREE.Box3().setFromObject(root);
+ const size=box.getSize(new THREE.Vector3());
+ const center=box.getCenter(new THREE.Vector3());
+ const scale=2.15/Math.max(size.y,.01);
+ root.scale.setScalar(scale);
+ root.position.y-=box.min.y*scale;
+ root.traverse(o=>{
+  if(o.isMesh){o.castShadow=true;o.receiveShadow=true;
+   if(o.material){o.material=Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone();
+    const mats=Array.isArray(o.material)?o.material:[o.material];
+    for(const m of mats){if(m.color){m.color.multiply(new THREE.Color(0xd6c4bd));} if("roughness" in m)m.roughness=Math.min(.9,m.roughness+.12);}
+   }
+  }
+ });
+}
+function addChakraAura(parent,color=0x4e8cff){
+ const aura=new THREE.Mesh(new THREE.SphereGeometry(1.12,24,18),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.10,side:THREE.BackSide,depthWrite:false}));
+ aura.position.y=1.05;parent.add(aura);return aura;
+}
+ninjaLoader.load(ninjaAssetUrl,(gltf)=>{
+ const base=gltf.scene;
+ const p=cloneSkeleton(base);fitNinja(p);p.rotation.y=Math.PI;
+ playerModel=new THREE.Group();playerModel.add(p);playerModel.position.copy(player.position);scene.add(playerModel);
+ playerMixer=new THREE.AnimationMixer(p);
+ const walkClip=gltf.animations.find(a=>/walk|run/i.test(a.name))||gltf.animations[0];
+ if(walkClip){playerWalk=playerMixer.clipAction(walkClip);playerWalk.play();playerWalk.paused=true;}
+ addChakraAura(playerModel,0xff713b);
+ const e=cloneSkeleton(base);fitNinja(e);e.rotation.y=0;
+ enemyModel=new THREE.Group();enemyModel.add(e);enemyModel.position.copy(enemy.position);scene.add(enemyModel);
+ enemyMixer=new THREE.AnimationMixer(e);
+ const enemyClip=gltf.animations.find(a=>/walk|run/i.test(a.name))||gltf.animations[0];
+ if(enemyClip){enemyWalk=enemyMixer.clipAction(enemyClip);enemyWalk.play();enemyWalk.paused=true;}
+ addChakraAura(enemyModel,0x528bff);
+ player.visible=false;enemy.visible=false;
+ $("loading").textContent="HIGH DETAIL SHINOBI LOADED";
+ setTimeout(()=>$("loading").style.display="none",650);
+},undefined,(err)=>{
+ console.warn("Rigged model unavailable; using built-in fallback.",err);
+ $("loading").textContent="FIGHT READY";
+ setTimeout(()=>$("loading").style.display="none",650);
+});
 let hp=100, enemyHp=100, chakra=100, block=false, moveX=0,moveY=0,attackCooldown=0,skillCooldown=0,gameOver=false;
 const keys={};
 const $=id=>document.getElementById(id);
 function hud(){ $("player-health").style.width=hp+"%";$("enemy-health").style.width=enemyHp+"%";$("health-label").textContent="HP "+Math.ceil(hp);$("chakra-label").textContent="CHAKRA "+Math.ceil(chakra)}
 function say(t){$("message").textContent=t}
-function hit(target,amount){if(target===enemy){enemyHp=Math.max(0,enemyHp-amount);enemy.userData.hitFlash=.18;if(enemyHp<=0){gameOver=true;say("VICTORY! TAP ATTACK TO RESET")}}else{hp=Math.max(0,hp-amount);player.userData.hitFlash=.18;if(hp<=0){gameOver=true;say("DEFEATED · TAP ATTACK TO RETRY")}}hud()}
-function reset(){hp=100;enemyHp=100;chakra=100;gameOver=false;player.position.set(-2,0,1.5);enemy.position.set(2,0,-1.4);hud();say("FIGHT!")}
+function hit(target,amount){if(target===enemy){enemyHp=Math.max(0,enemyHp-amount);enemy.userData.hitFlash=.18;if(enemyModel){enemyModel.scale.setScalar(1.08);setTimeout(()=>enemyModel&&enemyModel.scale.setScalar(1),130);}if(enemyHp<=0){gameOver=true;say("VICTORY! TAP ATTACK TO RESET")}}else{hp=Math.max(0,hp-amount);player.userData.hitFlash=.18;if(playerModel){playerModel.scale.setScalar(1.08);setTimeout(()=>playerModel&&playerModel.scale.setScalar(1),130);}if(hp<=0){gameOver=true;say("DEFEATED · TAP ATTACK TO RETRY")}}hud()}
+function reset(){hp=100;enemyHp=100;chakra=100;gameOver=false;player.position.set(-2,0,1.5);enemy.position.set(2,0,-1.4);if(playerModel)playerModel.position.copy(player.position);if(enemyModel)enemyModel.position.copy(enemy.position);hud();say("FIGHT!")}
 function attack(){if(gameOver){reset();return}if(attackCooldown>0)return;attackCooldown=.55;player.userData.attack=.25;const d=player.position.distanceTo(enemy.position);if(d<2.45){hit(enemy,10+Math.random()*5);say("HIT!")}else say("TOO FAR!")}
 function skill(type){if(gameOver||skillCooldown>0)return;if(chakra<25){say("NOT ENOUGH CHAKRA");return}chakra-=25;skillCooldown=1.5;hud();if(type==="kamui"){say("KAMUI!");const dir=new THREE.Vector3(0,0,-1).applyQuaternion(player.quaternion);player.position.addScaledVector(dir,2.2);if(player.position.distanceTo(enemy.position)<3.5)hit(enemy,25)}else{say("FIRE STYLE!");if(player.position.distanceTo(enemy.position)<5)hit(enemy,22);const fire=new THREE.Mesh(new THREE.SphereGeometry(.45,10,8),new THREE.MeshBasicMaterial({color:0xff6b16}));fire.position.copy(player.position).add(new THREE.Vector3(0,1,-1.3).applyQuaternion(player.quaternion));scene.add(fire);setTimeout(()=>scene.remove(fire),350)}}
 function doAction(a){if(a==="attack")attack();if(a==="kamui")skill("kamui");if(a==="fire")skill("fire");if(a==="jump"&&!gameOver)player.userData.jump=7;if(a==="block")block=true}
@@ -79,6 +130,7 @@ joy.addEventListener("pointerup",releaseJoy);joy.addEventListener("pointercancel
 
 const clock=new THREE.Clock();
 function update(dt){
+ if(playerMixer)playerMixer.update(dt);if(enemyMixer)enemyMixer.update(dt);
  if(gameOver)return;
  attackCooldown=Math.max(0,attackCooldown-dt);skillCooldown=Math.max(0,skillCooldown-dt);chakra=Math.min(100,chakra+dt*3.5);
  const ix=moveX+(keys.d?1:0)-(keys.a?1:0),iz=moveY+(keys.s?1:0)-(keys.w?1:0);
@@ -86,6 +138,8 @@ function update(dt){
  player.position.x+=forward.x*dt*4;player.position.z+=forward.z*4;
  player.position.x=THREE.MathUtils.clamp(player.position.x,-7,7);player.position.z=THREE.MathUtils.clamp(player.position.z,-7,7);
  if(forward.lengthSq()>.01){player.rotation.y=Math.atan2(forward.x,forward.z)+Math.PI}
+ if(playerModel){playerModel.position.copy(player.position);playerModel.rotation.y=player.rotation.y; if(playerWalk)playerWalk.paused=forward.lengthSq()<.01;}
+ if(enemyModel){enemyModel.position.copy(enemy.position);enemyModel.rotation.y=enemy.rotation.y; if(enemyWalk)enemyWalk.paused=dist<1.55;}
  if(player.userData.jump){player.position.y+=player.userData.jump*dt;player.userData.jump-=18*dt;if(player.position.y<0){player.position.y=0;player.userData.jump=0}}
  const toPlayer=player.position.clone().sub(enemy.position);const dist=toPlayer.length();
  if(dist>1.45){toPlayer.normalize();enemy.position.addScaledVector(toPlayer,dt*1.35);enemy.rotation.y=Math.atan2(-toPlayer.x,-toPlayer.z)+Math.PI}
@@ -94,8 +148,8 @@ function update(dt){
  else player.userData.limbs[0].rotation.x=0;
  if(enemy.userData.hitFlash>0){enemy.userData.hitFlash-=dt;enemy.scale.setScalar(1.04)}else enemy.scale.setScalar(1);
  if(player.userData.hitFlash>0){player.userData.hitFlash-=dt;player.scale.setScalar(1.03)}else player.scale.setScalar(1);
- camera.position.lerp(new THREE.Vector3(player.position.x,5.3,player.position.z+8.5),1-Math.pow(.001,dt));
- camera.lookAt(player.position.x,1,player.position.z-.6);
+ camera.position.lerp(new THREE.Vector3(player.position.x,4.2,player.position.z+7.2),1-Math.pow(.001,dt));
+ camera.lookAt(player.position.x,1.05,player.position.z-.7);
 }
 function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.04);update(dt);renderer.render(scene,camera)}
 animate();hud();$("loading").style.display="none";
