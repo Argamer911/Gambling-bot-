@@ -1,7 +1,7 @@
 import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from config import BOT_TOKEN
+from config import BOT_TOKEN, SHINOBI_WEBAPP_URL
 from database import init_db, get_or_create_player
 
 logging.basicConfig(
@@ -14,9 +14,8 @@ GAMES = [
     ("Tic Tac Toe", "tictactoe"), ("Rock Paper Scissors", "rps"),
     ("Chess", "chess"), ("Snake", "snake"), ("2048", "2048"),
     ("Memory Match", "memory"), ("Word Scramble", "words"),
-    ("Dice Battle", "dice"), ("Minesweeper", "mines"),
-    ("Space Shooter", "shooter"), ("Slot Machine", "slots"),
-    ("Roulette", "roulette"), ("Blackjack", "blackjack"),
+    ("Dice Battle", "dice"), ("Minesweeper", "mines"), ("Space Shooter", "shooter"),
+    ("Slot Machine", "slots"), ("Roulette", "roulette"), ("Blackjack", "blackjack"),
     ("Lucky Wheel", "wheel"), ("High Low Dice", "highlow"),
 ]
 
@@ -26,7 +25,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🎮 Welcome to GAMBLING UNIVERSE, {user.first_name}!\n\n"
         "Play games, earn virtual coins and gain XP.\n"
-        "Use /games to see all games and /help for commands."
+        "Use /games to see all games, /shinobi to launch 3D fighting, and /help for commands."
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -34,6 +33,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎮 GAMBLING UNIVERSE HELP\n\n"
         "/start - Start the bot\n"
         "/games - Show all 15 games\n"
+        "/shinobi - Launch 3D Shinobi Fight\n"
         "/profile - View your player profile\n"
         "/wallet - View your virtual coins\n"
         "/help - Show this help\n\n"
@@ -47,6 +47,22 @@ async def games_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await update.message.reply_text(
         "🎮 GAMBLING UNIVERSE — GAME CATALOG\n\nChoose a game:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+async def shinobi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not SHINOBI_WEBAPP_URL:
+        await update.message.reply_text(
+            "⚔️ 3D Shinobi Fight is built, but its Mini App URL is not configured yet. "
+            "Set SHINOBI_WEBAPP_URL in your .env after enabling GitHub Pages."
+        )
+        return
+    keyboard = [[InlineKeyboardButton(
+        "⚔️ PLAY 3D SHINOBI FIGHT",
+        web_app=WebAppInfo(url=SHINOBI_WEBAPP_URL)
+    )]]
+    await update.message.reply_text(
+        "⚔️ AR 3D SHINOBI FIGHT\n\nEnter the battlefield and challenge the rival!",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
@@ -68,6 +84,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("games", games_command))
+    app.add_handler(CommandHandler("shinobi", shinobi_command))
     app.add_handler(CallbackQueryHandler(game_selected, pattern=r"^game:"))
     logger.info("GAMBLING UNIVERSE bot is starting...")
     app.run_polling()
